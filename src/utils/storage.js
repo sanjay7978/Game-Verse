@@ -147,13 +147,78 @@ export function createUser(username, password, avatar = "🎮") {
 }
 
 export function saveState(key, value) {
-  window.localStorage.setItem(key, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage write failures to avoid crashing the app.
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function sanitizeUsers(users) {
+  if (!isPlainObject(users)) {
+    return {};
+  }
+
+  return Object.entries(users).reduce((acc, [username, user]) => {
+    if (!isPlainObject(user)) {
+      return acc;
+    }
+
+    acc[username] = {
+      username: typeof user.username === "string" ? user.username : username,
+      password: typeof user.password === "string" ? user.password : "",
+      avatar: typeof user.avatar === "string" ? user.avatar : "🎮",
+      totalXP: Number.isFinite(user.totalXP) ? user.totalXP : 0,
+      currentLevel: Number.isFinite(user.currentLevel) ? user.currentLevel : 1,
+      achievements: Array.isArray(user.achievements) ? user.achievements : [],
+      stats: isPlainObject(user.stats) ? user.stats : {},
+      createdAt: typeof user.createdAt === "string" ? user.createdAt : new Date().toISOString(),
+    };
+    return acc;
+  }, {});
+}
+
+function sanitizeLeaderboard(leaderboard) {
+  if (!Array.isArray(leaderboard)) {
+    return [];
+  }
+
+  return leaderboard.filter(
+    (entry) =>
+      isPlainObject(entry) &&
+      typeof entry.username === "string" &&
+      typeof entry.gameId === "string" &&
+      typeof entry.gameName === "string" &&
+      Number.isFinite(entry.score)
+  );
+}
+
+function safeParse(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) {
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export function loadState() {
-  const users = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.USERS) ?? "{}");
-  const currentUsername = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.CURRENT_USER) ?? "null");
-  const leaderboard = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.LEADERBOARD) ?? "[]");
-  const themeId = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.THEME) ?? '"neonBlue"');
+  const users = sanitizeUsers(safeParse(STORAGE_KEYS.USERS, {}));
+  const currentUsernameRaw = safeParse(STORAGE_KEYS.CURRENT_USER, null);
+  const currentUsername =
+    typeof currentUsernameRaw === "string" && users[currentUsernameRaw] ? currentUsernameRaw : null;
+  const leaderboard = sanitizeLeaderboard(safeParse(STORAGE_KEYS.LEADERBOARD, []));
+  const themeIdRaw = safeParse(STORAGE_KEYS.THEME, "neonBlue");
+  const themeId =
+    typeof themeIdRaw === "string" && THEME_OPTIONS[themeIdRaw] ? themeIdRaw : "neonBlue";
   return { users, currentUsername, leaderboard, themeId };
 }

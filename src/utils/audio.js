@@ -1,5 +1,34 @@
 let audioContext;
-let soundEnabled = JSON.parse(window.localStorage.getItem("gameverse-sound-enabled") ?? "true");
+
+function safeReadBoolean(key, fallback) {
+  try {
+    if (typeof window === "undefined") {
+      return fallback;
+    }
+
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) {
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "boolean" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeWrite(key, value) {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch {
+    // Ignore storage write failures so UI still works.
+  }
+}
+
+let soundEnabled = safeReadBoolean("gameverse-sound-enabled", true);
 
 function getContext() {
   if (!audioContext) {
@@ -49,7 +78,7 @@ export function unlockAudio() {
 
 export function setGlobalSoundEnabled(enabled) {
   soundEnabled = enabled;
-  window.localStorage.setItem("gameverse-sound-enabled", JSON.stringify(enabled));
+  safeWrite("gameverse-sound-enabled", enabled);
 }
 
 export function getGlobalSoundEnabled() {
